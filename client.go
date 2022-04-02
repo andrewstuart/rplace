@@ -20,6 +20,25 @@ type Update struct {
 	Color color.Color
 }
 
+func getUpdates(img image.Image) []Update {
+	var upd []Update
+	bs := img.Bounds()
+	for i := 0; i < bs.Max.X; i++ {
+		for j := 0; j < bs.Max.Y; j++ {
+			color := img.At(i, j)
+			_, _, _, a := color.RGBA()
+			if a > 0 {
+				upd = append(upd, Update{
+					X:     i,
+					Y:     j,
+					Color: color,
+				})
+			}
+		}
+	}
+	return upd
+}
+
 func (c Client) Subscribe(ctx context.Context) (chan []Update, error) {
 	tok, err := getToken(ctx)
 	if err != nil {
@@ -34,7 +53,6 @@ func (c Client) Subscribe(ctx context.Context) (chan []Update, error) {
 		return nil, fmt.Errorf("error getting websocket conn: %w", err)
 	}
 	res.Body.Close()
-	defer conn.Close()
 
 	err = conn.WriteJSON(ConnectionInitMessage{
 		Type: "connection_init",
@@ -51,8 +69,9 @@ func (c Client) Subscribe(ctx context.Context) (chan []Update, error) {
 		return nil, fmt.Errorf("error writing start JSON: %w", err)
 	}
 
-	ch := make(chan BasicMessage)
+	ch := make(chan []Update)
 	go func() {
+		defer conn.Close()
 		defer close(ch)
 
 		for {
@@ -65,10 +84,9 @@ func (c Client) Subscribe(ctx context.Context) (chan []Update, error) {
 			var msg BasicMessage
 			err = conn.ReadJSON(&msg)
 			if err != nil {
-				return
+				log.Println(err)
+				continue
 			}
-
-			var upd []Update
 
 			img, err := msg.getDeltaPng(ctx)
 			if err != nil {
@@ -80,7 +98,7 @@ func (c Client) Subscribe(ctx context.Context) (chan []Update, error) {
 			select {
 			case <-ctx.Done():
 				return
-			case ch <- msg:
+			case ch <- getUpdates(img):
 			}
 		}
 
