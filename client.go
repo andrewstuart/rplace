@@ -1,4 +1,4 @@
-package main
+package rplace
 
 import (
 	"context"
@@ -11,8 +11,18 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// A client exists to help read and understand changes to the canvas as they
+// happen.
 type Client struct {
-	img image.Image
+	curr image.Image
+}
+
+// NeededUpdatesFor takes an image.Image and a location on r/place to place it,
+// and returns a channel of updates needed to create and maintain the image at
+// that location. It is subscribed to further canvas updates and will continue
+// to return necessary changes until the context is closed.
+func (c Client) NeededUpdatesFor(ctx context.Context, img image.Image, x, y int) (chan Update, error) {
+	panic("not yet implemented")
 }
 
 type Update struct {
@@ -39,6 +49,7 @@ func getUpdates(img image.Image) []Update {
 	return upd
 }
 
+// Subscribe returns a channel of pixel updates from the r/place canvas.
 func (c Client) Subscribe(ctx context.Context) (chan []Update, error) {
 	tok, err := getToken(ctx)
 	if err != nil {

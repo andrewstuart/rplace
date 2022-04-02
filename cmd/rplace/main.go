@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/andrewstuart/rplace"
 	"github.com/gopuff/morecontext"
 )
 
 func main() {
 	ctx := morecontext.ForSignals()
 
-	cli := Client{}
+	cli := rplace.Client{}
 	ch, err := cli.Subscribe(ctx)
 	if err != nil {
 		log.Fatal(err)
