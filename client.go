@@ -51,7 +51,7 @@ func getUpdates(img image.Image) []Update {
 
 // Subscribe returns a channel of pixel updates from the r/place canvas.
 func (c Client) Subscribe(ctx context.Context) (chan []Update, error) {
-	tok, err := getToken(ctx)
+	tok, err := GetAnonymousToken(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error getting anonymous bearer token: %w", err)
 	}
@@ -65,9 +65,9 @@ func (c Client) Subscribe(ctx context.Context) (chan []Update, error) {
 	}
 	res.Body.Close()
 
-	err = conn.WriteJSON(ConnectionInitMessage{
+	err = conn.WriteJSON(connectionInitMessage{
 		Type: "connection_init",
-		Payload: ConnectionInitMessagePayload{
+		Payload: connectionInitMessagePayload{
 			Authorization: "Bearer " + tok.AccessToken,
 		},
 	})
@@ -93,7 +93,7 @@ func (c Client) Subscribe(ctx context.Context) (chan []Update, error) {
 			default:
 			}
 
-			var msg BasicMessage
+			var msg basicMessage
 			err = conn.ReadJSON(&msg)
 			if err != nil {
 				log.Println(err)

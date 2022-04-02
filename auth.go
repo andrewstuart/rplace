@@ -15,7 +15,9 @@ import (
 // kinda hacky, but it works
 var searchRegex = regexp.MustCompile("\"session\":{\"accessToken\":\"(?P<token>.+)\",\"expires\":\"(?P<expireTime>.+)\",\"expiresIn\":(?P<expiresIn>[0-9]+)")
 
-func getToken(ctx context.Context) (oauth2.Token, error) {
+// GetAnonymousToken returns the web accessToken that is written to the r/place
+// reddit page in javascript <script> tags by default.
+func GetAnonymousToken(ctx context.Context) (oauth2.Token, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://new.reddit.com/r/place/", nil)
 	if err != nil {
 		return oauth2.Token{}, err

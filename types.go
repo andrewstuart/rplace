@@ -1,9 +1,9 @@
 package rplace
 
-var start = StartMessage{
+var start = startMessage{
 	ID:   "1",
 	Type: "start",
-	Payload: StartMessagePayload{
+	Payload: startMessagePayload{
 		Extensions:    struct{}{},
 		OperationName: "replace",
 		Query: `subscription replace($input: SubscribeInput!) {
@@ -29,9 +29,9 @@ var start = StartMessage{
 		__typename
 	}
 }`,
-		Variables: StartMessagePayloadVariables{
-			Input: StartMessagePayloadVariablesInput{
-				Channel: StartMessagePayloadVariablesInputChannel{
+		Variables: startMessagePayloadVariables{
+			Input: startMessagePayloadVariablesInput{
+				Channel: startMessagePayloadVariablesInputChannel{
 					TeamOwner: "AFD2022",
 					Category:  "CANVAS",
 					Tag:       "0",
@@ -41,37 +41,37 @@ var start = StartMessage{
 	},
 }
 
-type ConnectionInitMessage struct {
+type connectionInitMessage struct {
 	Type    string                       `json:"type"`
-	Payload ConnectionInitMessagePayload `json:"payload"`
+	Payload connectionInitMessagePayload `json:"payload"`
 }
 
-type ConnectionInitMessagePayload struct {
+type connectionInitMessagePayload struct {
 	Authorization string
 }
 
-type StartMessage struct {
+type startMessage struct {
 	ID      string              `json:"id"`
 	Type    string              `json:"type"`
-	Payload StartMessagePayload `json:"payload"`
+	Payload startMessagePayload `json:"payload"`
 }
 
-type StartMessagePayload struct {
+type startMessagePayload struct {
 	Extensions    struct{}                     `json:"extensions"`
 	OperationName string                       `json:"operationName"`
 	Query         string                       `json:"query"`
-	Variables     StartMessagePayloadVariables `json:"variables"`
+	Variables     startMessagePayloadVariables `json:"variables"`
 }
 
-type StartMessagePayloadVariables struct {
-	Input StartMessagePayloadVariablesInput `json:"input"`
+type startMessagePayloadVariables struct {
+	Input startMessagePayloadVariablesInput `json:"input"`
 }
 
-type StartMessagePayloadVariablesInput struct {
-	Channel StartMessagePayloadVariablesInputChannel `json:"channel"`
+type startMessagePayloadVariablesInput struct {
+	Channel startMessagePayloadVariablesInputChannel `json:"channel"`
 }
 
-type StartMessagePayloadVariablesInputChannel struct {
+type startMessagePayloadVariablesInputChannel struct {
 	TeamOwner string `json:"teamOwner"`
 	Category  string `json:"category"`
 	Tag       string `json:"tag"`
