@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"image/draw"
 	"log"
 	"net/http"
 
@@ -22,6 +23,11 @@ type Client struct {
 // that location. It is subscribed to further canvas updates and will continue
 // to return necessary changes until the context is closed.
 func (c Client) NeededUpdatesFor(ctx context.Context, img image.Image, x, y int) (chan Update, error) {
+	updch, err := c.Subscribe(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error subscribing to updates: %w", err)
+	}
+
 	upds := c.getDiff(img, x, y)
 	ch := make(chan Update)
 	go func() {
@@ -29,6 +35,23 @@ func (c Client) NeededUpdatesFor(ctx context.Context, img image.Image, x, y int)
 			ch <- upd
 		}
 	}()
+	go func() {
+		defer close(ch)
+
+		bs := img.Bounds()
+		for upds := range updch {
+			for _, upd := range upds {
+				if upd.X > x && upd.X <= bs.Max.X+x && upd.Y > y && upd.Y <= y+bs.Max.Y {
+					select {
+					case ch <- upd:
+					case <-ctx.Done():
+						return
+					}
+				}
+			}
+		}
+	}()
+
 	return ch, nil
 }
 
@@ -59,6 +82,18 @@ func (c Client) getDiff(img image.Image, x, y int) []Update {
 type Update struct {
 	X, Y  int
 	Color color.Color
+}
+
+func (upd Update) requiresUpdate(canvas, tgt image.Image, x, y int) bool {
+	bs := tgt.Bounds()
+	if !(upd.X > x && upd.X <= bs.Max.X+x && upd.Y > y && upd.Y <= y+bs.Max.Y) {
+		return false
+	}
+
+	r, g, b, _ := upd.Color.RGBA()
+	rr, gg, bb, _ := tgt.At(upd.X-x, upd.Y-y).RGBA() // The index inside the target image
+
+	return !(r == rr && g == gg && b == bb)
 }
 
 func getUpdates(img image.Image) []Update {
@@ -112,6 +147,24 @@ func (c *Client) Subscribe(ctx context.Context) (chan []Update, error) {
 		return nil, fmt.Errorf("error writing start JSON: %w", err)
 	}
 
+	for {
+		var msg basicMessage
+		err = conn.ReadJSON(&msg)
+		if err != nil {
+			return nil, fmt.Errorf("error: %w", err)
+		}
+
+		if msg.Type != "data" {
+			continue
+		}
+
+		c.curr, err = msg.getDeltaPng(ctx)
+		if err != nil {
+			continue
+		}
+		break
+	}
+
 	ch := make(chan []Update)
 	go func() {
 		defer conn.Close()
@@ -131,11 +184,17 @@ func (c *Client) Subscribe(ctx context.Context) (chan []Update, error) {
 				continue
 			}
 
+			if msg.Type != "data" {
+				continue
+			}
+
 			img, err := msg.getDeltaPng(ctx)
 			if err != nil {
 				log.Println(err)
 				continue
 			}
+
+			draw.Draw(c.curr.(*image.Paletted), c.curr.Bounds(), img, image.Point{}, draw.Over)
 
 			// Try to send or context closed
 			select {
