@@ -60,6 +60,7 @@ func (c Client) Subscribe(ctx context.Context) (chan []Update, error) {
 			Authorization: "Bearer " + tok.AccessToken,
 		},
 	})
+
 	if err != nil {
 		return nil, fmt.Errorf("error authorizing connection: %w", err)
 	}
