@@ -15,7 +15,7 @@ type basicMessage struct {
 }
 
 func (b basicMessage) getDeltaPng(ctx context.Context) (image.Image, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, b.Payload.Data.Subscribe.Data.name, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, b.Payload.Data.Subscribe.Data.Name, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating http request for image: %w", err)
 	}
@@ -44,8 +44,8 @@ type subscribe struct {
 }
 
 type subscribeData struct {
-	typeName          string  `json:"__typename"`
-	currentTimestamp  float64 `json:"currentTimestamp"`
-	name              string  `json:"name"`
-	previousTimestamp float64 `json:"previousTimestamp"`
+	TypeName          string  `json:"__typename"`
+	CurrentTimestamp  float64 `json:"currentTimestamp"`
+	Name              string  `json:"name"`
+	PreviousTimestamp float64 `json:"previousTimestamp"`
 }
