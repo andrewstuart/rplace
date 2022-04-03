@@ -48,32 +48,55 @@ var rootCmd = &cobra.Command{
 			log.Panic("error connecting to discord: ", err)
 		}
 
-		disCli.Identify.Intents = discordgo.IntentsGuildMessages | discordgo.IntentDirectMessages
+		disCli.Identify.Intents = discordgo.IntentsGuildMessages | discordgo.IntentDirectMessages | discordgo.IntentGuildMembers
 
 		chid, _ := cmd.Flags().GetString("channel")
+
 		disCli.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
+			fmt.Printf("m = %#v\n", m)
 			// chid = m.ChannelID
 			fmt.Printf("m.ChannelID = %+v\n", m.ChannelID)
 			fmt.Printf("m.Content = %+v\n", m.Content)
+			if m.Thread != nil {
+				fmt.Printf("m.Thread.ID = %+v\n", m.Thread.ID)
+			}
 		})
+
+		ch, err := disCli.Channel(chid)
+		if err != nil {
+			log.Panic(err)
+		}
+
+		ms, err := disCli.GuildMembers(ch.GuildID, "", 100)
+		if err != nil {
+			log.Panic(err)
+		}
+		fmt.Printf("ms = %+v\n", ms)
+		for _, m := range ms {
+			fmt.Printf("m.Nick = %+v\n", m.Nick)
+			fmt.Printf("m.User.Username = %+v\n", m.User.Username)
+			fmt.Printf("m.User.IED = %+v\n", m.User.ID)
+		}
+		// return
 
 		err = disCli.Open()
 		if err != nil {
 			log.Panic(err)
 		}
 
-		go func() {
-			for {
-				select {
-				case <-cmd.Context().Done():
-					return
-				case up := <-ups:
-					if chid != "" {
-						disCli.ChannelMessageSend(chid, up.Link())
-					}
-				}
-			}
-		}()
+		fmt.Printf("ups = %+v\n", ups)
+		// go func() {
+		// 	for {
+		// 		select {
+		// 		case <-cmd.Context().Done():
+		// 			return
+		// 		case up := <-ups:
+		// 			if chid != "" {
+		// 				disCli.ChannelMessageSend(chid, up.Link())
+		// 			}
+		// 		}
+		// 	}
+		// }()
 
 		// fmt.Printf("ups = %+v\n", ups)
 		// fmt.Printf("disCli = %+v\n", disCli)
