@@ -25,7 +25,7 @@ type Client struct {
 	conn *websocket.Conn
 }
 
-const knownCanvases = 2
+const knownCanvases = 4
 
 // NeededUpdatesFor takes an image.Image and a location on r/place to place it,
 // and returns a channel of updates needed to create and maintain the image at
@@ -118,7 +118,7 @@ func (c *Client) getInitial(ctx context.Context, numCanvases int) error {
 	}
 
 	i := 0
-	c.curr = image.NewPaletted(image.Rect(0, 0, 2000, 1000), StdPalette)
+	c.curr = image.NewPaletted(image.Rect(0, 0, 2000, 2000), StdPalette)
 	for i < numCanvases {
 		select {
 		case <-ctx.Done():
@@ -146,8 +146,15 @@ func (c *Client) getInitial(ctx context.Context, numCanvases int) error {
 			}
 
 			rect := c.curr.Bounds()
-			if strings.Contains(msg.Payload.Data.Subscribe.Data.Name, "-1-") {
+			switch {
+			case strings.Contains(msg.Payload.Data.Subscribe.Data.Name, "-0-"):
+			case strings.Contains(msg.Payload.Data.Subscribe.Data.Name, "-1-"):
 				rect.Min.X = 1000
+			case strings.Contains(msg.Payload.Data.Subscribe.Data.Name, "-2-"):
+				rect.Min.Y = 1000
+			case strings.Contains(msg.Payload.Data.Subscribe.Data.Name, "-3-"):
+				rect.Min.X = 1000
+				rect.Min.Y = 1000
 			}
 			draw.Draw(c.curr.(*image.Paletted), rect, img, image.Point{}, draw.Over)
 		}
@@ -234,8 +241,15 @@ func (c *Client) Subscribe(ctx context.Context) (chan []Update, error) {
 			}
 
 			rect := c.curr.Bounds()
-			if strings.Contains(msg.Payload.Data.Subscribe.Data.Name, "-1-") {
+			switch {
+			case strings.Contains(msg.Payload.Data.Subscribe.Data.Name, "-0-"):
+			case strings.Contains(msg.Payload.Data.Subscribe.Data.Name, "-1-"):
 				rect.Min.X = 1000
+			case strings.Contains(msg.Payload.Data.Subscribe.Data.Name, "-2-"):
+				rect.Min.Y = 1000
+			case strings.Contains(msg.Payload.Data.Subscribe.Data.Name, "-3-"):
+				rect.Min.X = 1000
+				rect.Min.Y = 1000
 			}
 			draw.Draw(c.curr.(*image.Paletted), rect, img, image.Point{}, draw.Over)
 
