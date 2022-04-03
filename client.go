@@ -49,9 +49,9 @@ func (c *Client) NeededUpdatesFor(ctx context.Context, img image.Image, at image
 
 		for upds := range updch {
 			for _, upd := range upds {
-				if upd.requiresUpdate(img, at) {
+				if newUp, ok := upd.getUpdate(img, at); ok {
 					select {
-					case ch <- upd:
+					case ch <- newUp:
 					case <-ctx.Done():
 						return
 					}

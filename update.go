@@ -20,23 +20,29 @@ func (u Update) Link() string {
 // requiresUpdate lets you query whether given a target, and its zero point on
 // the canvas, an update should be applied or if it is already within the
 // desired parameters.
-func (upd Update) requiresUpdate(tgt image.Image, zero image.Point) bool {
+func (upd Update) getUpdate(tgt image.Image, zero image.Point) (Update, bool) {
 	// First, reset the update point from the perspective of the image's zero point.
 	inTarget := upd.Sub(zero)
 	// Then, if not in bounds, false
 	if !inTarget.In(tgt.Bounds()) {
-		return false
+		return Update{}, false
 	}
 
-	rr, gg, bb, aa := tgt.At(inTarget.X, inTarget.Y).RGBA() // The index inside the target image
+	clr := tgt.At(inTarget.X, inTarget.Y)
+	rr, gg, bb, aa := clr.RGBA() // The index inside the target image
 	if aa == 0 {
-		return false
+		return Update{}, false
 	}
 
 	// Then compare the colors
 	r, g, b, _ := upd.Color.RGBA()
 
-	return !(r == rr && g == gg && b == bb)
+	if r == rr && g == gg && b == bb {
+		return Update{}, false
+	}
+
+	upd.Color = lookupColor(clr)
+	return upd, true
 }
 
 // GetUpdates returns the list of updated pixels from an image, given that

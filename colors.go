@@ -48,7 +48,7 @@ func init() {
 
 func lookupColor(c color.Color) CanvasColor {
 	// Find the closest color
-	c = stdPalette[stdPalette.Index(c)]
+	c = stdPalette.Convert(c)
 
 	r, g, b, _ := c.RGBA()
 	return canvasColor[[3]uint32{r, g, b}]
