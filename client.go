@@ -64,7 +64,7 @@ func (c *Client) NeededUpdatesFor(ctx context.Context, img image.Image, at image
 }
 
 // WithImage returns a copy of the canvas with a preview image overlayed.
-func (c Client) WithImage(img image.Image, at image.Point) (image.Image, error) {
+func (c *Client) WithImage(img image.Image, at image.Point) (image.Image, error) {
 	// copy
 	buf := &bytes.Buffer{}
 	png.Encode(buf, c.curr)
@@ -79,7 +79,7 @@ func (c Client) WithImage(img image.Image, at image.Point) (image.Image, error) 
 
 // getDiff returns a slice of changes that must be made for the Client's
 // current canvas to become the given image, overlayed at the given point.
-func (c Client) getDiff(img image.Image, at image.Point) []Update {
+func (c *Client) getDiff(img image.Image, at image.Point) []Update {
 	bs := img.Bounds()
 	x, y := at.X, at.Y
 	var upds []Update
