@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/gorilla/websocket"
 )
@@ -19,6 +20,9 @@ import (
 // (images) to the canvas.
 type Client struct {
 	curr image.Image
+
+	o    sync.Once
+	conn *websocket.Conn
 }
 
 const knownCanvases = 2
@@ -102,58 +106,12 @@ func (c Client) getDiff(img image.Image, at image.Point) []Update {
 	return upds
 }
 
-// An Update is a desired change that must be made to a canvas.
-type Update struct {
-	image.Point
-	Color CanvasColor
-}
-
-// Link encodes the browser link that would take you to the correct location on
-// r/place's canvas.
-func (u Update) Link() string {
-	return fmt.Sprintf("https://www.reddit.com/r/place/?cx=%d&cy=%d&px=17", u.X, u.Y)
-}
-
-// requiresUpdate lets you query whether given a canvas, target, and point, an
-// update should be applied or if it is already within the desired parameters.
-func (upd Update) requiresUpdate(canvas, tgt image.Image, pt image.Point) bool {
-	bs := tgt.Bounds()
-	if !pt.In(bs) {
-		return false
-	}
-
-	r, g, b, _ := upd.Color.RGBA()
-	rr, gg, bb, _ := stdPalette.Convert(tgt.At(upd.X-pt.X, upd.Y-pt.Y)).RGBA() // The index inside the target image
-
-	return !(r == rr && g == gg && b == bb)
-}
-
-// GetUpdates returns the list of updated pixels from an image, given that
-// image's known zero point on the canvas. The zero point was added after day 2
-// when the reddit r/place canvas doubled in size.
-func getUpdates(zero image.Point, img image.Image) []Update {
-	var upd []Update
-	bs := img.Bounds()
-	for i := 0; i < bs.Max.X; i++ {
-		for j := 0; j < bs.Max.Y; j++ {
-			clr := img.At(i, j)
-			_, _, _, a := clr.RGBA()
-			if a > 0 {
-				upd = append(upd, Update{
-					Point: zero.Add(image.Point{X: i, Y: j}),
-					Color: lookupColor(clr),
-				})
-			}
-		}
-	}
-	return upd
-}
-
 // getInitial waits for N full frame image updates
-func (c *Client) getInitial(ctx context.Context, conn *websocket.Conn, numCanvases int) error {
+func (c *Client) getInitial(ctx context.Context, numCanvases int) error {
+	c.Init(ctx)
 	for i := 0; i < numCanvases; i++ {
 		start.Payload.Variables.Input.Channel.Tag = fmt.Sprint(i)
-		err := conn.WriteJSON(start)
+		err := c.conn.WriteJSON(start)
 		if err != nil {
 			return fmt.Errorf("error writing start JSON for canvas #%d: %w", i+1, err)
 		}
@@ -169,7 +127,7 @@ func (c *Client) getInitial(ctx context.Context, conn *websocket.Conn, numCanvas
 		}
 
 		var msg basicMessage
-		err := conn.ReadJSON(&msg)
+		err := c.conn.ReadJSON(&msg)
 		if err != nil {
 			log.Println(err)
 			continue
@@ -197,42 +155,58 @@ func (c *Client) getInitial(ctx context.Context, conn *websocket.Conn, numCanvas
 	return nil
 }
 
-// Subscribe returns a channel of pixel updates from the r/place canvas.
+func (c *Client) Init(ctx context.Context) error {
+	var cerr error
+	c.o.Do(func() {
+		tok, err := GetAnonymousToken(ctx)
+		if err != nil {
+			cerr = fmt.Errorf("error getting token: %w", err)
+			return
+		}
+
+		conn, res, err := websocket.DefaultDialer.DialContext(ctx, "wss://gql-realtime-2.reddit.com/query", http.Header{
+			"Sec-Websocket-Protocol": []string{"graphql-ws"},
+			"Origin":                 []string{"https://hot-potato.reddit.com"},
+		})
+		if err != nil {
+			cerr = fmt.Errorf("error getting websocket conn: %w", err)
+			return
+		}
+		res.Body.Close()
+
+		err = conn.WriteJSON(connectionInitMessage{
+			Type: "connection_init",
+			Payload: connectionInitMessagePayload{
+				Authorization: "Bearer " + tok.AccessToken,
+			},
+		})
+
+		if err != nil {
+			cerr = fmt.Errorf("error authorizing connection: %w", err)
+			return
+		}
+
+		c.conn = conn
+		return
+	})
+	return cerr
+}
+
+// Subscribe returns a channel of pixel updates from the r/place canvas. This
+// does not include the initial canvas downloads.
 func (c *Client) Subscribe(ctx context.Context) (chan []Update, error) {
-	tok, err := GetAnonymousToken(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("error getting anonymous bearer token: %w", err)
-	}
-
-	conn, res, err := websocket.DefaultDialer.DialContext(ctx, "wss://gql-realtime-2.reddit.com/query", http.Header{
-		"Sec-Websocket-Protocol": []string{"graphql-ws"},
-		"Origin":                 []string{"https://hot-potato.reddit.com"},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error getting websocket conn: %w", err)
-	}
-	res.Body.Close()
-
-	err = conn.WriteJSON(connectionInitMessage{
-		Type: "connection_init",
-		Payload: connectionInitMessagePayload{
-			Authorization: "Bearer " + tok.AccessToken,
-		},
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("error authorizing connection: %w", err)
-	}
-
+	c.Init(ctx)
 	// Get initial images
-	err = c.getInitial(ctx, conn, knownCanvases)
+	err := c.getInitial(ctx, knownCanvases)
 	if err != nil {
 		return nil, fmt.Errorf("error getting initial canvases: %w", err)
 	}
 
 	ch := make(chan []Update)
+	// TODO use a client internal channel for centralizing this so that many
+	// calls to subscribe reuse the same conn listener.
 	go func() {
-		defer conn.Close()
+		defer c.conn.Close()
 		defer close(ch)
 
 		for {
@@ -243,7 +217,7 @@ func (c *Client) Subscribe(ctx context.Context) (chan []Update, error) {
 			}
 
 			var msg basicMessage
-			err = conn.ReadJSON(&msg)
+			err = c.conn.ReadJSON(&msg)
 			if err != nil {
 				log.Println(err)
 				continue
