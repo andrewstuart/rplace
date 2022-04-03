@@ -48,8 +48,39 @@ var rootCmd = &cobra.Command{
 			log.Panic("error connecting to discord: ", err)
 		}
 
-		fmt.Printf("ups = %+v\n", ups)
-		fmt.Printf("disCli = %+v\n", disCli)
+		disCli.Identify.Intents = discordgo.IntentsGuildMessages | discordgo.IntentDirectMessages
+
+		chid, _ := cmd.Flags().GetString("channel")
+		disCli.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
+			// chid = m.ChannelID
+			fmt.Printf("m.ChannelID = %+v\n", m.ChannelID)
+			fmt.Printf("m.Content = %+v\n", m.Content)
+		})
+
+		err = disCli.Open()
+		if err != nil {
+			log.Panic(err)
+		}
+
+		go func() {
+			for {
+				select {
+				case <-cmd.Context().Done():
+					return
+				case up := <-ups:
+					if chid != "" {
+						disCli.ChannelMessageSend(chid, up.Link())
+					}
+				}
+			}
+		}()
+
+		// fmt.Printf("ups = %+v\n", ups)
+		// fmt.Printf("disCli = %+v\n", disCli)
+
+		select {
+		case <-cmd.Context().Done():
+		}
 
 	},
 }
@@ -74,7 +105,7 @@ func init() {
 	// when this action is called directly.
 	rootCmd.Flags().StringP("image", "i", "gopher.png", "An image, in png format")
 	rootCmd.Flags().StringP("token", "t", "", "The discord bot token")
-	rootCmd.Flags().StringP("channel", "c", "", "The discord bot token")
+	rootCmd.Flags().StringP("channel", "c", "", "The discord bot channel")
 	rootCmd.Flags().Int("x", 0, "The X coordinate")
 	rootCmd.Flags().Int("y", 0, "The Y coordinate")
 }
