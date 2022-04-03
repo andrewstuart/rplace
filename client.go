@@ -14,25 +14,26 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// A client exists to help read and understand changes to the canvas as they
-// happen.
+// A Client exists to help read and understand changes to the canvas as they
+// happen, and determine changes necessary to bring specific desired states
+// (images) to the canvas.
 type Client struct {
 	curr image.Image
 }
 
-const numCanvases = 2
+const knownCanvases = 2
 
 // NeededUpdatesFor takes an image.Image and a location on r/place to place it,
 // and returns a channel of updates needed to create and maintain the image at
 // that location. It is subscribed to further canvas updates and will continue
 // to return necessary changes until the context is closed.
-func (c *Client) NeededUpdatesFor(ctx context.Context, img image.Image, x, y int) (chan Update, error) {
+func (c *Client) NeededUpdatesFor(ctx context.Context, img image.Image, at image.Point) (chan Update, error) {
 	updch, err := c.Subscribe(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error subscribing to updates: %w", err)
 	}
 
-	upds := c.getDiff(img, x, y)
+	upds := c.getDiff(img, at)
 	ch := make(chan Update)
 	go func() {
 		for _, upd := range upds {
@@ -44,7 +45,7 @@ func (c *Client) NeededUpdatesFor(ctx context.Context, img image.Image, x, y int
 
 		for upds := range updch {
 			for _, upd := range upds {
-				if upd.requiresUpdate(c.curr, img, image.Point{X: x, Y: y}) {
+				if upd.requiresUpdate(c.curr, img, at) {
 					select {
 					case ch <- upd:
 					case <-ctx.Done():
@@ -58,6 +59,7 @@ func (c *Client) NeededUpdatesFor(ctx context.Context, img image.Image, x, y int
 	return ch, nil
 }
 
+// WithImage returns a copy of the canvas with a preview image overlayed.
 func (c Client) WithImage(img image.Image, at image.Point) (image.Image, error) {
 	// copy
 	buf := &bytes.Buffer{}
@@ -71,8 +73,11 @@ func (c Client) WithImage(img image.Image, at image.Point) (image.Image, error) 
 	return curr, nil
 }
 
-func (c Client) getDiff(img image.Image, x, y int) []Update {
+// getDiff returns a slice of changes that must be made for the Client's
+// current canvas to become the given image, overlayed at the given point.
+func (c Client) getDiff(img image.Image, at image.Point) []Update {
 	bs := img.Bounds()
+	x, y := at.X, at.Y
 	var upds []Update
 
 	for xx := 0; xx < bs.Max.X; xx++ {
@@ -97,15 +102,20 @@ func (c Client) getDiff(img image.Image, x, y int) []Update {
 	return upds
 }
 
+// An Update is a desired change that must be made to a canvas.
 type Update struct {
 	image.Point
 	Color CanvasColor
 }
 
+// Link encodes the browser link that would take you to the correct location on
+// r/place's canvas.
 func (u Update) Link() string {
 	return fmt.Sprintf("https://www.reddit.com/r/place/?cx=%d&cy=%d&px=17", u.X, u.Y)
 }
 
+// requiresUpdate lets you query whether given a canvas, target, and point, an
+// update should be applied or if it is already within the desired parameters.
 func (upd Update) requiresUpdate(canvas, tgt image.Image, pt image.Point) bool {
 	bs := tgt.Bounds()
 	if !pt.In(bs) {
@@ -118,6 +128,9 @@ func (upd Update) requiresUpdate(canvas, tgt image.Image, pt image.Point) bool {
 	return !(r == rr && g == gg && b == bb)
 }
 
+// GetUpdates returns the list of updated pixels from an image, given that
+// image's known zero point on the canvas. The zero point was added after day 2
+// when the reddit r/place canvas doubled in size.
 func getUpdates(zero image.Point, img image.Image) []Update {
 	var upd []Update
 	bs := img.Bounds()
@@ -136,7 +149,16 @@ func getUpdates(zero image.Point, img image.Image) []Update {
 	return upd
 }
 
-func (c *Client) getInitial(ctx context.Context, conn *websocket.Conn) error {
+// getInitial waits for N full frame image updates
+func (c *Client) getInitial(ctx context.Context, conn *websocket.Conn, numCanvases int) error {
+	for i := 0; i < numCanvases; i++ {
+		start.Payload.Variables.Input.Channel.Tag = fmt.Sprint(i)
+		err := conn.WriteJSON(start)
+		if err != nil {
+			return fmt.Errorf("error writing start JSON for canvas #%d: %w", i+1, err)
+		}
+	}
+
 	i := 0
 	c.curr = image.NewPaletted(image.Rect(0, 0, 2000, 1000), stdPalette)
 	for i < numCanvases {
@@ -202,16 +224,8 @@ func (c *Client) Subscribe(ctx context.Context) (chan []Update, error) {
 		return nil, fmt.Errorf("error authorizing connection: %w", err)
 	}
 
-	for i := 0; i < numCanvases; i++ {
-		start.Payload.Variables.Input.Channel.Tag = fmt.Sprint(i)
-		err = conn.WriteJSON(start)
-		if err != nil {
-			return nil, fmt.Errorf("error writing start JSON: %w", err)
-		}
-	}
-
 	// Get initial images
-	err = c.getInitial(ctx, conn)
+	err = c.getInitial(ctx, conn, knownCanvases)
 	if err != nil {
 		return nil, fmt.Errorf("error getting initial canvases: %w", err)
 	}
