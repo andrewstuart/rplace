@@ -49,7 +49,7 @@ func (c *Client) NeededUpdatesFor(ctx context.Context, img image.Image, at image
 
 		for upds := range updch {
 			for _, upd := range upds {
-				if upd.requiresUpdate(c.curr, img, at) {
+				if upd.requiresUpdate(img, at) {
 					select {
 					case ch <- upd:
 					case <-ctx.Done():

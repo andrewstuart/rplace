@@ -17,16 +17,24 @@ func (u Update) Link() string {
 	return fmt.Sprintf("https://www.reddit.com/r/place/?cx=%d&cy=%d&px=17", u.X, u.Y)
 }
 
-// requiresUpdate lets you query whether given a canvas, target, and point, an
-// update should be applied or if it is already within the desired parameters.
-func (upd Update) requiresUpdate(canvas, tgt image.Image, pt image.Point) bool {
-	bs := tgt.Bounds()
-	if !pt.In(bs) {
+// requiresUpdate lets you query whether given a target, and its zero point on
+// the canvas, an update should be applied or if it is already within the
+// desired parameters.
+func (upd Update) requiresUpdate(tgt image.Image, zero image.Point) bool {
+	// First, reset the update point from the perspective of the image's zero point.
+	inTarget := upd.Sub(zero)
+	// Then, if not in bounds, false
+	if !inTarget.In(tgt.Bounds()) {
 		return false
 	}
 
+	rr, gg, bb, aa := tgt.At(inTarget.X, inTarget.Y).RGBA() // The index inside the target image
+	if aa == 0 {
+		return false
+	}
+
+	// Then compare the colors
 	r, g, b, _ := upd.Color.RGBA()
-	rr, gg, bb, _ := stdPalette.Convert(tgt.At(upd.X-pt.X, upd.Y-pt.Y)).RGBA() // The index inside the target image
 
 	return !(r == rr && g == gg && b == bb)
 }

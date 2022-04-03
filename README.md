@@ -19,3 +19,8 @@ for upds := range updates {
 
 For a more practical example, see [the cmd/rplace
 package](./cmd/rplace/main.go).
+
+# TODO
+
+- [ ] Add multiple desired image states tracking with the same update feed.
+- [ ] Don't check alpha 0 

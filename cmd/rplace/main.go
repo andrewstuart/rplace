@@ -26,7 +26,7 @@ func main() {
 	}
 	f.Close()
 
-	ch, err := cli.NeededUpdatesFor(ctx, img, 1434, 664)
+	ch, err := cli.NeededUpdatesFor(ctx, img, image.Point{X: 1434, Y: 664})
 	if err != nil {
 		log.Fatal(err)
 	}

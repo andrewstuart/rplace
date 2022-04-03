@@ -10,35 +10,39 @@ import (
 )
 
 var (
-// DarkRed    = mustParseHexColor("BE0039")
-// Red        = mustParseHexColor("FF4500")
-// Orange     = mustParseHexColor("FFA800")
-// Yellow     = mustParseHexColor("FFD635")
-// DarkGreen  = mustParseHexColor("00A368")
-// Green      = mustParseHexColor("00CC78")
-// LightGreen = mustParseHexColor("7EED56")
-// DarkTeal   = mustParseHexColor("00756F")
-// Teal       = mustParseHexColor("009EAA")
-// DarkBlue   = mustParseHexColor("2450A4")
-// Blue       = mustParseHexColor("3690EA")
-// LightBlue  = mustParseHexColor("51E9F4")
-// Indigo     = mustParseHexColor("493AC1")
-// Periwinkle = mustParseHexColor("6A5CFF")
-// DarkPurple = mustParseHexColor("811E9F")
-// Purple     = mustParseHexColor("B44AC0")
-// Pink       = mustParseHexColor("FF3881")
-// Pink       = mustParseHexColor("FF3881")
+	darkRed = mustParseHexColor("#BE0039")
+
+// Red        = mustParseHexColor("#FF4500")
+// Orange     = mustParseHexColor("#FFA800")
+// Yellow     = mustParseHexColor("#FFD635")
+// DarkGreen  = mustParseHexColor("#00A368")
+// Green      = mustParseHexColor("#00CC78")
+// LightGreen = mustParseHexColor("#7EED56")
+// DarkTeal   = mustParseHexColor("#00756F")
+// Teal       = mustParseHexColor("#009EAA")
+// DarkBlue   = mustParseHexColor("#2450A4")
+// Blue       = mustParseHexColor("#3690EA")
+// LightBlue  = mustParseHexColor("#51E9F4")
+// Indigo     = mustParseHexColor("#493AC1")
+// Periwinkle = mustParseHexColor("#6A5CFF")
+// DarkPurple = mustParseHexColor("#811E9F")
+// Purple     = mustParseHexColor("#B44AC0")
+// Pink       = mustParseHexColor("#FF3881")
+// Pink       = mustParseHexColor("#FF3881")
 )
 
 var (
 	stdColors, _ = GetPalette(strings.NewReader(colorString))
-	stdPalette   color.Palette
 	canvasColor  = map[[3]uint32]CanvasColor{}
+	stdPalette   = color.Palette{}
 )
 
 func init() {
 	for _, c := range stdColors {
-		stdPalette = append(stdPalette, c.Color)
+		clr := c.Color.(color.RGBA)
+		stdPalette = append(stdPalette, clr)
+		clr.A = 0
+		stdPalette = append(stdPalette, clr)
 		r, g, b, _ := c.Color.RGBA()
 		canvasColor[[3]uint32{r, g, b}] = c
 	}
