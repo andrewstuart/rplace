@@ -16,3 +16,6 @@ for upds := range updates {
 	}
 }
 ```
+
+For a more practical example, see [the cmd/rplace
+package](./cmd/rplace/main.go).
