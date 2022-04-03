@@ -10,8 +10,7 @@ import (
 )
 
 var (
-	darkRed = mustParseHexColor("#BE0039")
-
+// DarkRed    = mustParseHexColor("#BE0039")
 // Red        = mustParseHexColor("#FF4500")
 // Orange     = mustParseHexColor("#FFA800")
 // Yellow     = mustParseHexColor("#FFD635")
@@ -27,7 +26,6 @@ var (
 // Periwinkle = mustParseHexColor("#6A5CFF")
 // DarkPurple = mustParseHexColor("#811E9F")
 // Purple     = mustParseHexColor("#B44AC0")
-// Pink       = mustParseHexColor("#FF3881")
 // Pink       = mustParseHexColor("#FF3881")
 )
 

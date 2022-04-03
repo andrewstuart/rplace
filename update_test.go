@@ -17,7 +17,7 @@ func TestRequiresUpdate(t *testing.T) {
 
 	u := Update{
 		Point: image.Point{0, 0},
-		Color: CanvasColor{Color: darkRed},
+		Color: CanvasColor{Color: color.RGBA{}},
 	}
 
 	asrt.True(u.requiresUpdate(sub, image.Point{}))
