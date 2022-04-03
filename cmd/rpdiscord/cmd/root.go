@@ -56,6 +56,9 @@ var rootCmd = &cobra.Command{
 
 		disCli.Identify.Intents = discordgo.IntentsGuildMessages | discordgo.IntentDirectMessages | discordgo.IntentGuildMembers | discordgo.IntentGuildMessageReactions | discordgo.IntentDirectMessageReactions
 		disCli.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
+			if m.Author.ID == disCli.State.User.ID {
+				return
+			}
 			spew.Dump(m)
 			log.Println(m.Author.Username, ": ", m.Content)
 		})
@@ -105,7 +108,7 @@ var rootCmd = &cobra.Command{
 			if i > 0 {
 				select {
 				case <-cmd.Context().Done():
-				case <-time.After(6 * time.Minute):
+				case <-time.After(5*time.Minute + 15*time.Second):
 				}
 			}
 
@@ -159,7 +162,7 @@ var rootCmd = &cobra.Command{
 							log.Printf("Panicked trying to update: %v\n", err)
 						}
 					}()
-					time.Sleep(6 * time.Minute)
+					time.Sleep(5*time.Minute + 15*time.Second)
 					if up, ok := acked.Load(msg.ID); ok {
 						up := up.(rplace.Update)
 						log.Printf("requeueing: %+v\n", up)
