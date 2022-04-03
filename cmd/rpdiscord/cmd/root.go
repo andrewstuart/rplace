@@ -89,6 +89,9 @@ var rootCmd = &cobra.Command{
 			}
 
 			for _, m := range ms {
+				if m.User.ID == disCli.State.User.ID {
+					continue
+				}
 				ch, err := disCli.UserChannelCreate(m.User.ID)
 				if err != nil {
 					log.Println(err)
@@ -106,10 +109,11 @@ var rootCmd = &cobra.Command{
 				buf := &bytes.Buffer{}
 				png.Encode(buf, img)
 
-				disCli.ChannelFileSendWithMessage(ch.ID, fmt.Sprintf("Please update %s to %s. (See color swatch)", up.Link(), up.Color.Name), "color.png", buf)
+				msg, err := disCli.ChannelFileSendWithMessage(ch.ID, fmt.Sprintf("Please update %s to %s. (See color swatch)", up.Link(), up.Color.Name), "color.png", buf)
 				if err != nil {
 					log.Println(err)
 				}
+				fmt.Printf("msg.ID = %+v\n", msg.ID)
 			}
 		}
 	},
