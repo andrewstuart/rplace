@@ -7,6 +7,7 @@ import (
 	"image/draw"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/websocket"
 )
@@ -16,6 +17,8 @@ import (
 type Client struct {
 	curr image.Image
 }
+
+const numCanvases = 2
 
 // NeededUpdatesFor takes an image.Image and a location on r/place to place it,
 // and returns a channel of updates needed to create and maintain the image at
@@ -93,7 +96,7 @@ func (upd Update) requiresUpdate(canvas, tgt image.Image, x, y int) bool {
 	}
 
 	r, g, b, _ := upd.Color.RGBA()
-	rr, gg, bb, _ := tgt.At(upd.X-x, upd.Y-y).RGBA() // The index inside the target image
+	rr, gg, bb, _ := stdPalette.Convert(tgt.At(upd.X-x, upd.Y-y)).RGBA() // The index inside the target image
 
 	return !(r == rr && g == gg && b == bb)
 }
@@ -115,6 +118,45 @@ func getUpdates(img image.Image) []Update {
 		}
 	}
 	return upd
+}
+
+func (c *Client) getInitial(ctx context.Context, conn *websocket.Conn) error {
+	i := 0
+	c.curr = image.NewPaletted(image.Rect(0, 0, 2000, 1000), stdPalette)
+	for i < numCanvases {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		var msg basicMessage
+		err := conn.ReadJSON(&msg)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+
+		if msg.Type != "data" {
+			continue
+		}
+
+		switch msg.Payload.Data.Subscribe.Data.Typename {
+		case "FullFrameMessageData":
+			i++
+			img, err := msg.getDeltaPng(ctx)
+			if err != nil {
+				return fmt.Errorf("error getting png: %w", err)
+			}
+
+			rect := c.curr.Bounds()
+			if strings.Contains(msg.Payload.Data.Subscribe.Data.Name, "-1-") {
+				rect.Min.X = 1000
+			}
+			draw.Draw(c.curr.(*image.Paletted), rect, img, image.Point{}, draw.Over)
+		}
+	}
+	return nil
 }
 
 // Subscribe returns a channel of pixel updates from the r/place canvas.
@@ -144,27 +186,18 @@ func (c *Client) Subscribe(ctx context.Context) (chan []Update, error) {
 		return nil, fmt.Errorf("error authorizing connection: %w", err)
 	}
 
-	err = conn.WriteJSON(start)
-	if err != nil {
-		return nil, fmt.Errorf("error writing start JSON: %w", err)
+	for i := 0; i < numCanvases; i++ {
+		start.Payload.Variables.Input.Channel.Tag = fmt.Sprint(i)
+		err = conn.WriteJSON(start)
+		if err != nil {
+			return nil, fmt.Errorf("error writing start JSON: %w", err)
+		}
 	}
 
-	for {
-		var msg basicMessage
-		err = conn.ReadJSON(&msg)
-		if err != nil {
-			return nil, fmt.Errorf("error: %w", err)
-		}
-
-		if msg.Type != "data" {
-			continue
-		}
-
-		c.curr, err = msg.getDeltaPng(ctx)
-		if err != nil {
-			continue
-		}
-		break
+	// Get initial images
+	err = c.getInitial(ctx, conn)
+	if err != nil {
+		return nil, fmt.Errorf("error getting initial canvases: %w", err)
 	}
 
 	ch := make(chan []Update)
@@ -196,7 +229,11 @@ func (c *Client) Subscribe(ctx context.Context) (chan []Update, error) {
 				continue
 			}
 
-			draw.Draw(c.curr.(*image.Paletted), c.curr.Bounds(), img, image.Point{}, draw.Over)
+			rect := c.curr.Bounds()
+			if strings.Contains(msg.Payload.Data.Subscribe.Data.Name, "-1-") {
+				rect.Min.X = 1000
+			}
+			draw.Draw(c.curr.(*image.Paletted), rect, img, image.Point{}, draw.Over)
 
 			// Try to send or context closed
 			select {

@@ -44,7 +44,7 @@ type subscribe struct {
 }
 
 type subscribeData struct {
-	TypeName          string  `json:"__typename"`
+	Typename          string  `json:"__typename"`
 	CurrentTimestamp  float64 `json:"currentTimestamp"`
 	Name              string  `json:"name"`
 	PreviousTimestamp float64 `json:"previousTimestamp"`
