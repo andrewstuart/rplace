@@ -14,7 +14,7 @@ type Update struct {
 // Link encodes the browser link that would take you to the correct location on
 // r/place's canvas.
 func (u Update) Link() string {
-	return fmt.Sprintf("https://www.reddit.com/r/place/?cx=%d&cy=%d&px=17", u.X, u.Y)
+	return fmt.Sprintf("https://new.reddit.com/r/place/?cx=%d&cy=%d&px=17", u.X, u.Y)
 }
 
 // requiresUpdate lets you query whether given a target, and its zero point on
