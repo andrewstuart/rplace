@@ -11,7 +11,7 @@ import (
 func TestRequiresUpdate(t *testing.T) {
 	asrt := assert.New(t)
 
-	sub := image.NewPaletted(image.Rect(0, 0, 100, 100), stdPalette)
+	sub := image.NewPaletted(image.Rect(0, 0, 100, 100), StdPalette)
 	white := color.RGBA{R: 255, G: 255, B: 255, A: 255}
 	sub.Set(0, 0, white)
 

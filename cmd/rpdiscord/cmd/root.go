@@ -5,11 +5,13 @@ Copyright © 2022 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"image"
 	"image/png"
 	"log"
 	"os"
+	"time"
 
 	"github.com/andrewstuart/rplace"
 	"github.com/bwmarrin/discordgo"
@@ -23,6 +25,7 @@ var rootCmd = &cobra.Command{
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
+		// Target image
 		imgFlg, _ := cmd.Flags().GetString("image")
 		imgF, err := os.OpenFile(imgFlg, os.O_RDONLY, 0400)
 		if err != nil {
@@ -37,10 +40,20 @@ var rootCmd = &cobra.Command{
 		cli := rplace.Client{}
 		x, _ := cmd.Flags().GetInt("x")
 		y, _ := cmd.Flags().GetInt("y")
+
 		ups, err := cli.NeededUpdatesFor(cmd.Context(), img, image.Point{X: x, Y: y})
 		if err != nil {
 			log.Panic("error getting updates for image: ", err)
 		}
+
+		// Encode and send example image
+		example, err := cli.WithImage(img, image.Point{X: x, Y: y})
+		if err != nil {
+			log.Panic(err)
+		}
+
+		buf := &bytes.Buffer{}
+		png.Encode(buf, example)
 
 		tok, _ := cmd.Flags().GetString("token")
 		disCli, err := discordgo.New("Bot " + tok)
@@ -50,61 +63,71 @@ var rootCmd = &cobra.Command{
 
 		disCli.Identify.Intents = discordgo.IntentsGuildMessages | discordgo.IntentDirectMessages | discordgo.IntentGuildMembers
 
-		chid, _ := cmd.Flags().GetString("channel")
-
-		disCli.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
-			fmt.Printf("m = %#v\n", m)
-			// chid = m.ChannelID
-			fmt.Printf("m.ChannelID = %+v\n", m.ChannelID)
-			fmt.Printf("m.Content = %+v\n", m.Content)
-			if m.Thread != nil {
-				fmt.Printf("m.Thread.ID = %+v\n", m.Thread.ID)
+		if chid, err := cmd.Flags().GetString("channel"); err == nil {
+			ch, err := disCli.Channel(chid)
+			if err != nil {
+				log.Panic("Channel details error: ", err)
 			}
-		})
 
-		ch, err := disCli.Channel(chid)
-		if err != nil {
-			log.Panic(err)
+			if testu, err := cmd.Flags().GetString("testuser"); err == nil {
+				ms, err := disCli.GuildMembers(ch.GuildID, "", 1000)
+				for _, m := range ms {
+					if m.User.Username == testu {
+						ch, err := disCli.UserChannelCreate(m.User.ID)
+
+						disCli.ChannelFileSend(ch.ID, "example.png", buf)
+						const h = 25
+						for up := range ups {
+							img := image.NewPaletted(image.Rect(0, 0, h, h), rplace.StdPalette)
+							for i := 0; i < h; i++ {
+								for j := 0; j < h; j++ {
+									img.Set(i, j, up.Color.Color)
+								}
+							}
+							buf := &bytes.Buffer{}
+							png.Encode(buf, img)
+							disCli.ChannelFileSendWithMessage(ch.ID, fmt.Sprintf("Please update %s to %s", up.Link(), up.Color.Name), "color.png", buf)
+							if err != nil {
+								log.Println(err)
+							}
+							time.Sleep(5 * time.Minute)
+						}
+						return
+					}
+				}
+				ch, err := disCli.Channel(chid)
+				if err != nil {
+					log.Panic(err)
+				}
+				go func() {
+					for {
+						select {
+						case <-cmd.Context().Done():
+							return
+						case up := <-ups:
+							if chid != "" {
+								time.Sleep(5 * time.Second)
+								disCli.ChannelMessageSend(ch.ID, up.Link())
+							}
+						}
+					}
+				}()
+			}
+
+			disCli.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
+				log.Println(m.Author.Username, ": ", m.Content)
+			})
+
+			// return
+
+			err = disCli.Open()
+			if err != nil {
+				log.Panic(err)
+			}
 		}
-
-		ms, err := disCli.GuildMembers(ch.GuildID, "", 100)
-		if err != nil {
-			log.Panic(err)
-		}
-		fmt.Printf("ms = %+v\n", ms)
-		for _, m := range ms {
-			fmt.Printf("m.Nick = %+v\n", m.Nick)
-			fmt.Printf("m.User.Username = %+v\n", m.User.Username)
-			fmt.Printf("m.User.IED = %+v\n", m.User.ID)
-		}
-		// return
-
-		err = disCli.Open()
-		if err != nil {
-			log.Panic(err)
-		}
-
-		fmt.Printf("ups = %+v\n", ups)
-		// go func() {
-		// 	for {
-		// 		select {
-		// 		case <-cmd.Context().Done():
-		// 			return
-		// 		case up := <-ups:
-		// 			if chid != "" {
-		// 				disCli.ChannelMessageSend(chid, up.Link())
-		// 			}
-		// 		}
-		// 	}
-		// }()
-
-		// fmt.Printf("ups = %+v\n", ups)
-		// fmt.Printf("disCli = %+v\n", disCli)
-
 		select {
 		case <-cmd.Context().Done():
 		}
-
 	},
 }
 
@@ -126,6 +149,7 @@ func init() {
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
+	rootCmd.Flags().StringP("testuser", "u", "", "The user ID")
 	rootCmd.Flags().StringP("image", "i", "gopher.png", "An image, in png format")
 	rootCmd.Flags().StringP("token", "t", "", "The discord bot token")
 	rootCmd.Flags().StringP("channel", "c", "", "The discord bot channel")

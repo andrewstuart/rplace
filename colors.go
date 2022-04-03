@@ -32,15 +32,15 @@ var (
 var (
 	stdColors, _ = GetPalette(strings.NewReader(colorString))
 	canvasColor  = map[[3]uint32]CanvasColor{}
-	stdPalette   = color.Palette{}
+	StdPalette   = color.Palette{}
 )
 
 func init() {
 	for _, c := range stdColors {
 		clr := c.Color.(color.RGBA)
-		stdPalette = append(stdPalette, clr)
+		StdPalette = append(StdPalette, clr)
 		clr.A = 0
-		stdPalette = append(stdPalette, clr)
+		StdPalette = append(StdPalette, clr)
 		r, g, b, _ := c.Color.RGBA()
 		canvasColor[[3]uint32{r, g, b}] = c
 	}
@@ -48,7 +48,7 @@ func init() {
 
 func lookupColor(c color.Color) CanvasColor {
 	// Find the closest color
-	c = stdPalette.Convert(c)
+	c = StdPalette.Convert(c)
 
 	r, g, b, _ := c.RGBA()
 	return canvasColor[[3]uint32{r, g, b}]

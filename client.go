@@ -118,7 +118,7 @@ func (c *Client) getInitial(ctx context.Context, numCanvases int) error {
 	}
 
 	i := 0
-	c.curr = image.NewPaletted(image.Rect(0, 0, 2000, 1000), stdPalette)
+	c.curr = image.NewPaletted(image.Rect(0, 0, 2000, 1000), StdPalette)
 	for i < numCanvases {
 		select {
 		case <-ctx.Done():
