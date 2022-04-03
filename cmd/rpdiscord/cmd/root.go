@@ -47,15 +47,6 @@ var rootCmd = &cobra.Command{
 			log.Panic("error getting updates for image: ", err)
 		}
 
-		// Encode and send example image
-		example, err := cli.WithImage(img, image.Point{X: x, Y: y})
-		if err != nil {
-			log.Panic(err)
-		}
-
-		buf := &bytes.Buffer{}
-		png.Encode(buf, example)
-
 		tok, _ := cmd.Flags().GetString("token")
 		disCli, err := discordgo.New("Bot " + tok)
 		if err != nil {
@@ -87,12 +78,26 @@ var rootCmd = &cobra.Command{
 			log.Panic(err)
 		}
 
+		if chid, err := cmd.Flags().GetString("channel"); err == nil {
+			// Encode and send example image
+			example, err := cli.WithImage(img, image.Point{X: x, Y: y})
+			if err != nil {
+				log.Panic(err)
+			}
+
+			buf := &bytes.Buffer{}
+			png.Encode(buf, example)
+
+			disCli.ChannelFileSendWithMessage(chid, "Preview of the intended canvas state", "example.png", buf)
+			buf.Reset()
+		}
+
 		guildID, _ := cmd.Flags().GetString("guild")
 		for i := 0; ; i++ {
 			if i > 0 {
 				select {
 				case <-cmd.Context().Done():
-				case <-time.After(5 * time.Minute):
+				case <-time.After(6 * time.Minute):
 				}
 			}
 
@@ -136,7 +141,7 @@ var rootCmd = &cobra.Command{
 							log.Printf("Panicked trying to update: %v\n", err)
 						}
 					}()
-					time.Sleep(4 * time.Minute)
+					time.Sleep(6 * time.Minute)
 					if up, ok := acked[msg.ID]; ok {
 						log.Printf("requeueing: %+v\n", up)
 						ups <- up
@@ -170,6 +175,7 @@ func init() {
 	rootCmd.Flags().StringP("image", "i", "gopher.png", "An image, in png format")
 	rootCmd.Flags().StringP("token", "t", "", "The discord bot token")
 	rootCmd.Flags().StringP("guild", "g", "", "The discord guild (server)")
+	rootCmd.Flags().String("channel", "", "The channel to post a preview in.")
 	rootCmd.Flags().Int("x", 0, "The X coordinate")
 	rootCmd.Flags().Int("y", 0, "The Y coordinate")
 }
