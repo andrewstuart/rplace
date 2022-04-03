@@ -1,10 +1,12 @@
 package rplace
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"image"
 	"image/draw"
+	"image/png"
 	"log"
 	"net/http"
 	"strings"
@@ -24,7 +26,7 @@ const numCanvases = 2
 // and returns a channel of updates needed to create and maintain the image at
 // that location. It is subscribed to further canvas updates and will continue
 // to return necessary changes until the context is closed.
-func (c Client) NeededUpdatesFor(ctx context.Context, img image.Image, x, y int) (chan Update, error) {
+func (c *Client) NeededUpdatesFor(ctx context.Context, img image.Image, x, y int) (chan Update, error) {
 	updch, err := c.Subscribe(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error subscribing to updates: %w", err)
@@ -42,7 +44,7 @@ func (c Client) NeededUpdatesFor(ctx context.Context, img image.Image, x, y int)
 
 		for upds := range updch {
 			for _, upd := range upds {
-				if upd.requiresUpdate(c.curr, img, x, y) {
+				if upd.requiresUpdate(c.curr, img, image.Point{X: x, Y: y}) {
 					select {
 					case ch <- upd:
 					case <-ctx.Done():
@@ -54,6 +56,19 @@ func (c Client) NeededUpdatesFor(ctx context.Context, img image.Image, x, y int)
 	}()
 
 	return ch, nil
+}
+
+func (c Client) WithImage(img image.Image, at image.Point) (image.Image, error) {
+	// copy
+	buf := &bytes.Buffer{}
+	png.Encode(buf, c.curr)
+	curr, err := png.Decode(buf)
+	if err != nil {
+		return nil, fmt.Errorf("error re-decoding for some reason: %w", err)
+	}
+
+	draw.Draw(curr.(*image.Paletted), image.Rectangle{Min: at, Max: at.Add(img.Bounds().Max)}, img, image.Point{}, draw.Over)
+	return curr, nil
 }
 
 func (c Client) getDiff(img image.Image, x, y int) []Update {
@@ -69,8 +84,10 @@ func (c Client) getDiff(img image.Image, x, y int) []Update {
 			rr, gg, bb, _ := desiredColor.RGBA()
 			if !(r == rr && g == gg && b == bb) {
 				upds = append(upds, Update{
-					X:     xx + x,
-					Y:     yy + y,
+					Point: image.Point{
+						X: xx + x,
+						Y: yy + y,
+					},
 					Color: lookupColor(desiredColor),
 				})
 			}
@@ -81,7 +98,7 @@ func (c Client) getDiff(img image.Image, x, y int) []Update {
 }
 
 type Update struct {
-	X, Y  int
+	image.Point
 	Color CanvasColor
 }
 
@@ -89,19 +106,19 @@ func (u Update) Link() string {
 	return fmt.Sprintf("https://www.reddit.com/r/place/?cx=%d&cy=%d&px=17", u.X, u.Y)
 }
 
-func (upd Update) requiresUpdate(canvas, tgt image.Image, x, y int) bool {
+func (upd Update) requiresUpdate(canvas, tgt image.Image, pt image.Point) bool {
 	bs := tgt.Bounds()
-	if !(upd.X > x && upd.X <= bs.Max.X+x && upd.Y > y && upd.Y <= y+bs.Max.Y) {
+	if !pt.In(bs) {
 		return false
 	}
 
 	r, g, b, _ := upd.Color.RGBA()
-	rr, gg, bb, _ := stdPalette.Convert(tgt.At(upd.X-x, upd.Y-y)).RGBA() // The index inside the target image
+	rr, gg, bb, _ := stdPalette.Convert(tgt.At(upd.X-pt.X, upd.Y-pt.Y)).RGBA() // The index inside the target image
 
 	return !(r == rr && g == gg && b == bb)
 }
 
-func getUpdates(img image.Image) []Update {
+func getUpdates(zero image.Point, img image.Image) []Update {
 	var upd []Update
 	bs := img.Bounds()
 	for i := 0; i < bs.Max.X; i++ {
@@ -110,8 +127,7 @@ func getUpdates(img image.Image) []Update {
 			_, _, _, a := clr.RGBA()
 			if a > 0 {
 				upd = append(upd, Update{
-					X:     i,
-					Y:     j,
+					Point: zero.Add(image.Point{X: i, Y: j}),
 					Color: lookupColor(clr),
 				})
 			}
@@ -239,7 +255,7 @@ func (c *Client) Subscribe(ctx context.Context) (chan []Update, error) {
 			select {
 			case <-ctx.Done():
 				return
-			case ch <- getUpdates(img):
+			case ch <- getUpdates(rect.Min, img):
 			}
 		}
 
