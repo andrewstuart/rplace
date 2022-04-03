@@ -15,6 +15,7 @@ import (
 
 	"github.com/andrewstuart/rplace"
 	"github.com/bwmarrin/discordgo"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/spf13/cobra"
 )
 
@@ -71,6 +72,9 @@ var rootCmd = &cobra.Command{
 
 			if testu, err := cmd.Flags().GetString("testuser"); err == nil {
 				ms, err := disCli.GuildMembers(ch.GuildID, "", 1000)
+				if err != nil {
+					log.Println("Error getting members", err)
+				}
 				for _, m := range ms {
 					if m.User.Username == testu {
 						ch, err := disCli.UserChannelCreate(m.User.ID)
@@ -78,9 +82,6 @@ var rootCmd = &cobra.Command{
 						disCli.ChannelFileSend(ch.ID, "example.png", buf)
 						const h = 25
 						for up := range ups {
-							if up.Color.Name == "black" {
-								continue
-							}
 							img := image.NewPaletted(image.Rect(0, 0, h, h), rplace.StdPalette)
 							for i := 0; i < h; i++ {
 								for j := 0; j < h; j++ {
@@ -118,6 +119,7 @@ var rootCmd = &cobra.Command{
 			}
 
 			disCli.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
+				spew.Dump(m)
 				log.Println(m.Author.Username, ": ", m.Content)
 			})
 
