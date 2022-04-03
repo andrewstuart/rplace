@@ -78,6 +78,9 @@ var rootCmd = &cobra.Command{
 						disCli.ChannelFileSend(ch.ID, "example.png", buf)
 						const h = 25
 						for up := range ups {
+							if up.Color.Name == "black" {
+								continue
+							}
 							img := image.NewPaletted(image.Rect(0, 0, h, h), rplace.StdPalette)
 							for i := 0; i < h; i++ {
 								for j := 0; j < h; j++ {
@@ -86,7 +89,7 @@ var rootCmd = &cobra.Command{
 							}
 							buf := &bytes.Buffer{}
 							png.Encode(buf, img)
-							disCli.ChannelFileSendWithMessage(ch.ID, fmt.Sprintf("Please update %s to %s", up.Link(), up.Color.Name), "color.png", buf)
+							disCli.ChannelFileSendWithMessage(ch.ID, fmt.Sprintf("Please update %s to %s. (See attached 25x25 color swatch)", up.Link(), up.Color.Name), "color.png", buf)
 							if err != nil {
 								log.Println(err)
 							}
