@@ -64,15 +64,11 @@ func (c Client) getDiff(img image.Image, x, y int) []Update {
 
 			r, g, b, _ := currColor.RGBA()
 			rr, gg, bb, _ := desiredColor.RGBA()
-			c, err := lookupColor(desiredColor)
-			if err != nil {
-				panic(err)
-			}
 			if !(r == rr && g == gg && b == bb) {
 				upds = append(upds, Update{
 					X:     xx + x,
 					Y:     yy + y,
-					Color: c,
+					Color: lookupColor(desiredColor),
 				})
 			}
 		}
@@ -107,13 +103,13 @@ func getUpdates(img image.Image) []Update {
 	bs := img.Bounds()
 	for i := 0; i < bs.Max.X; i++ {
 		for j := 0; j < bs.Max.Y; j++ {
-			color := img.At(i, j)
-			_, _, _, a := color.RGBA()
+			clr := img.At(i, j)
+			_, _, _, a := clr.RGBA()
 			if a > 0 {
 				upd = append(upd, Update{
 					X:     i,
 					Y:     j,
-					Color: color,
+					Color: lookupColor(clr),
 				})
 			}
 		}

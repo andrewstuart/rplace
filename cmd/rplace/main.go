@@ -14,20 +14,8 @@ func main() {
 	ctx := morecontext.ForSignals()
 
 	cli := rplace.Client{}
-	f, err := os.OpenFile("colors.html", os.O_RDONLY, 0400)
-	if err != nil {
-		log.Fatal(err)
-	}
 
-	colors, err := rplace.GetPalette(f)
-	if err != nil {
-		log.Fatal(err)
-	}
-	f.Close()
-
-	fmt.Printf("colors = %+v\n", colors)
-
-	f, err = os.OpenFile("gopher.png", os.O_RDONLY, 0400)
+	f, err := os.OpenFile("gopher.png", os.O_RDONLY, 0400)
 	if err != nil {
 		log.Fatal(err)
 	}

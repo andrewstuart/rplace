@@ -31,23 +31,25 @@ var (
 )
 
 var (
-	stdPalette, _ = GetPalette(strings.NewReader(colorString))
-	canvasColor   = map[[3]uint32]CanvasColor{}
+	stdColors, _ = GetPalette(strings.NewReader(colorString))
+	stdPalette   color.Palette
+	canvasColor  = map[[3]uint32]CanvasColor{}
 )
 
 func init() {
-	for _, c := range stdPalette {
+	for _, c := range stdColors {
+		stdPalette = append(stdPalette, c.Color)
 		r, g, b, _ := c.Color.RGBA()
 		canvasColor[[3]uint32{r, g, b}] = c
 	}
 }
 
-func lookupColor(c color.Color) (CanvasColor, error) {
+func lookupColor(c color.Color) CanvasColor {
+	// Find the closest color
+	c = stdPalette[stdPalette.Index(c)]
+
 	r, g, b, _ := c.RGBA()
-	if cc, ok := canvasColor[[3]uint32{r, g, b}]; ok {
-		return cc, nil
-	}
-	return CanvasColor{}, fmt.Errorf("couldn't find color %s", c)
+	return canvasColor[[3]uint32{r, g, b}]
 }
 
 type CanvasColor struct {
@@ -70,7 +72,6 @@ func GetPalette(r io.Reader) (map[string]CanvasColor, error) {
 		var hex string
 		fmt.Sscanf(sty, "background-color:%s", &hex)
 		hex = strings.Split(hex, ";")[0]
-		fmt.Printf("hex = %+v\n", hex)
 
 		colors[name] = CanvasColor{
 			Color: mustParseHexColor(hex),
