@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/draw"
 	"image/png"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -37,7 +38,7 @@ func (c *Client) NeededUpdatesFor(ctx context.Context, img image.Image, at image
 		return nil, fmt.Errorf("error subscribing to updates: %w", err)
 	}
 
-	upds := c.getDiff(img, at)
+	upds := c.GetDiff(img, at)
 	ch := make(chan Update)
 	go func() {
 		for _, upd := range upds {
@@ -77,9 +78,9 @@ func (c *Client) WithImage(img image.Image, at image.Point) (image.Image, error)
 	return curr, nil
 }
 
-// getDiff returns a slice of changes that must be made for the Client's
+// GetDiff returns a slice of changes that must be made for the Client's
 // current canvas to become the given image, overlayed at the given point.
-func (c *Client) getDiff(img image.Image, at image.Point) []Update {
+func (c *Client) GetDiff(img image.Image, at image.Point) []Update {
 	bs := img.Bounds()
 	x, y := at.X, at.Y
 	var upds []Update
@@ -226,6 +227,11 @@ func (c *Client) Subscribe(ctx context.Context) (chan []Update, error) {
 			var msg basicMessage
 			err = c.conn.ReadJSON(&msg)
 			if err != nil {
+				if err == io.EOF {
+					c.o = sync.Once{}
+					c.Init(ctx)
+					continue
+				}
 				log.Println(err)
 				continue
 			}
