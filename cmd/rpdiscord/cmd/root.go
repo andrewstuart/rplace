@@ -11,6 +11,7 @@ import (
 	"image/png"
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/andrewstuart/rplace"
@@ -59,17 +60,17 @@ var rootCmd = &cobra.Command{
 			log.Println(m.Author.Username, ": ", m.Content)
 		})
 
-		acked := map[string]rplace.Update{}
+		var acked sync.Map
 		disCli.AddHandler(func(s *discordgo.Session, m *discordgo.MessageReactionAdd) {
 			spew.Dump(m)
 			if m.MessageReaction.Emoji.Name == "✅" {
-				delete(acked, m.MessageID)
+				acked.Delete(m.MessageID)
 			}
 		})
 		disCli.AddHandler(func(s *discordgo.Session, m *discordgo.MessageReactionAdd) {
 			spew.Dump(m)
 			if m.MessageReaction.Emoji.ID == "" {
-				delete(acked, m.MessageID)
+				acked.Delete(m.MessageID)
 			}
 		})
 
@@ -92,6 +93,13 @@ var rootCmd = &cobra.Command{
 			buf.Reset()
 		}
 
+		var updMap sync.Map
+		go func() {
+			for up := range ups {
+				updMap.Store([2]int{up.X, up.Y}, up)
+			}
+		}()
+
 		guildID, _ := cmd.Flags().GetString("guild")
 		for i := 0; ; i++ {
 			if i > 0 {
@@ -107,16 +115,24 @@ var rootCmd = &cobra.Command{
 				continue
 			}
 
-			for _, m := range ms {
+			// Gather N updates by number of members minus 1 (bot)
+			var memberUps []rplace.Update
+			updMap.Range(func(k, v interface{}) bool {
+				memberUps = append(memberUps, v.(rplace.Update))
+				return len(memberUps) < len(ms)-1
+			})
+
+			for i, m := range ms {
 				if m.User.ID == disCli.State.User.ID {
 					continue
 				}
+
+				up := memberUps[i]
 				ch, err := disCli.UserChannelCreate(m.User.ID)
 				if err != nil {
 					log.Println(err)
 					continue
 				}
-				up := <-ups
 
 				const h = 25
 				img := image.NewPaletted(image.Rect(0, 0, h, h), rplace.StdPalette)
@@ -131,9 +147,11 @@ var rootCmd = &cobra.Command{
 				msg, err := disCli.ChannelFileSendWithMessage(ch.ID, fmt.Sprintf("Please update %s to %s. (See color swatch). Please react ✅ when done or the request will be requeued.", up.Link(), up.Color.Name), "color.png", buf)
 				if err != nil {
 					log.Println(err)
+					continue
 				}
+				updMap.Delete([2]int{up.X, up.Y})
 
-				acked[msg.ID] = up
+				acked.Store(msg.ID, up)
 				go func() {
 					defer func() {
 						err := recover()
@@ -142,9 +160,10 @@ var rootCmd = &cobra.Command{
 						}
 					}()
 					time.Sleep(6 * time.Minute)
-					if up, ok := acked[msg.ID]; ok {
+					if up, ok := acked.Load(msg.ID); ok {
+						up := up.(rplace.Update)
 						log.Printf("requeueing: %+v\n", up)
-						ups <- up
+						updMap.Store([2]int{up.X, up.Y}, up)
 					}
 				}()
 
