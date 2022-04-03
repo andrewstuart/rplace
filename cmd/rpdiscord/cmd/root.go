@@ -63,75 +63,54 @@ var rootCmd = &cobra.Command{
 		}
 
 		disCli.Identify.Intents = discordgo.IntentsGuildMessages | discordgo.IntentDirectMessages | discordgo.IntentGuildMembers
+		disCli.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
+			spew.Dump(m)
+			log.Println(m.Author.Username, ": ", m.Content)
+		})
 
-		if chid, err := cmd.Flags().GetString("channel"); err == nil {
-			ch, err := disCli.Channel(chid)
-			if err != nil {
-				log.Panic("Channel details error: ", err)
-			}
-
-			if testu, err := cmd.Flags().GetString("testuser"); err == nil {
-				ms, err := disCli.GuildMembers(ch.GuildID, "", 1000)
-				if err != nil {
-					log.Println("Error getting members", err)
-				}
-				for _, m := range ms {
-					if m.User.Username == testu {
-						ch, err := disCli.UserChannelCreate(m.User.ID)
-
-						disCli.ChannelFileSend(ch.ID, "example.png", buf)
-						const h = 25
-						for up := range ups {
-							img := image.NewPaletted(image.Rect(0, 0, h, h), rplace.StdPalette)
-							for i := 0; i < h; i++ {
-								for j := 0; j < h; j++ {
-									img.Set(i, j, up.Color.Color)
-								}
-							}
-							buf := &bytes.Buffer{}
-							png.Encode(buf, img)
-							disCli.ChannelFileSendWithMessage(ch.ID, fmt.Sprintf("Please update %s to %s. (See attached 25x25 color swatch)", up.Link(), up.Color.Name), "color.png", buf)
-							if err != nil {
-								log.Println(err)
-							}
-							time.Sleep(5 * time.Minute)
-						}
-						return
-					}
-				}
-				ch, err := disCli.Channel(chid)
-				if err != nil {
-					log.Panic(err)
-				}
-				go func() {
-					for {
-						select {
-						case <-cmd.Context().Done():
-							return
-						case up := <-ups:
-							if chid != "" {
-								time.Sleep(5 * time.Second)
-								disCli.ChannelMessageSend(ch.ID, up.Link())
-							}
-						}
-					}
-				}()
-			}
-
-			disCli.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
-				spew.Dump(m)
-				log.Println(m.Author.Username, ": ", m.Content)
-			})
-
-			// return
-
-			err = disCli.Open()
-			if err != nil {
-				log.Panic(err)
-			}
+		err = disCli.Open()
+		if err != nil {
+			log.Panic(err)
 		}
-		select {
-		case <-cmd.Context().Done():
+
+		guildID, _ := cmd.Flags().GetString("guild")
+		for i := 0; ; i++ {
+			if i > 0 {
+				select {
+				case <-cmd.Context().Done():
+				case <-time.After(5 * time.Minute):
+				}
+			}
+
+			ms, err := disCli.GuildMembers(guildID, "", 1000)
+			if err != nil {
+				log.Println("Error getting members", err)
+				continue
+			}
+
+			for _, m := range ms {
+				ch, err := disCli.UserChannelCreate(m.User.ID)
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+				up := <-ups
+
+				const h = 25
+				img := image.NewPaletted(image.Rect(0, 0, h, h), rplace.StdPalette)
+				for i := 0; i < h; i++ {
+					for j := 0; j < h; j++ {
+						img.Set(i, j, up.Color.Color)
+					}
+				}
+				buf := &bytes.Buffer{}
+				png.Encode(buf, img)
+
+				disCli.ChannelFileSendWithMessage(ch.ID, fmt.Sprintf("Please update %s to %s. (See color swatch)", up.Link(), up.Color.Name), "color.png", buf)
+				if err != nil {
+					log.Println(err)
+				}
+			}
 		}
 	},
 }
@@ -154,10 +133,9 @@ func init() {
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
-	rootCmd.Flags().StringP("testuser", "u", "", "The user ID")
 	rootCmd.Flags().StringP("image", "i", "gopher.png", "An image, in png format")
 	rootCmd.Flags().StringP("token", "t", "", "The discord bot token")
-	rootCmd.Flags().StringP("channel", "c", "", "The discord bot channel")
+	rootCmd.Flags().StringP("guild", "g", "", "The discord guild (server)")
 	rootCmd.Flags().Int("x", 0, "The X coordinate")
 	rootCmd.Flags().Int("y", 0, "The Y coordinate")
 }
