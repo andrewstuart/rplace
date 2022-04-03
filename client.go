@@ -38,10 +38,9 @@ func (c Client) NeededUpdatesFor(ctx context.Context, img image.Image, x, y int)
 	go func() {
 		defer close(ch)
 
-		bs := img.Bounds()
 		for upds := range updch {
 			for _, upd := range upds {
-				if upd.X > x && upd.X <= bs.Max.X+x && upd.Y > y && upd.Y <= y+bs.Max.Y {
+				if upd.requiresUpdate(c.curr, img, x, y) {
 					select {
 					case ch <- upd:
 					case <-ctx.Done():
@@ -82,6 +81,10 @@ func (c Client) getDiff(img image.Image, x, y int) []Update {
 type Update struct {
 	X, Y  int
 	Color color.Color
+}
+
+func (u Update) Link() string {
+	return fmt.Sprintf("https://www.reddit.com/r/place/?cx=%d&cy=%d&px=17", u.X, u.Y)
 }
 
 func (upd Update) requiresUpdate(canvas, tgt image.Image, x, y int) bool {
