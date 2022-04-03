@@ -62,10 +62,24 @@ var rootCmd = &cobra.Command{
 			log.Panic("error connecting to discord: ", err)
 		}
 
-		disCli.Identify.Intents = discordgo.IntentsGuildMessages | discordgo.IntentDirectMessages | discordgo.IntentGuildMembers
+		disCli.Identify.Intents = discordgo.IntentsGuildMessages | discordgo.IntentDirectMessages | discordgo.IntentGuildMembers | discordgo.IntentGuildMessageReactions | discordgo.IntentDirectMessageReactions
 		disCli.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
 			spew.Dump(m)
 			log.Println(m.Author.Username, ": ", m.Content)
+		})
+
+		acked := map[string]rplace.Update{}
+		disCli.AddHandler(func(s *discordgo.Session, m *discordgo.MessageReactionAdd) {
+			spew.Dump(m)
+			if m.MessageReaction.Emoji.Name == "✅" {
+				delete(acked, m.MessageID)
+			}
+		})
+		disCli.AddHandler(func(s *discordgo.Session, m *discordgo.MessageReactionAdd) {
+			spew.Dump(m)
+			if m.MessageReaction.Emoji.ID == "" {
+				delete(acked, m.MessageID)
+			}
 		})
 
 		err = disCli.Open()
@@ -109,10 +123,26 @@ var rootCmd = &cobra.Command{
 				buf := &bytes.Buffer{}
 				png.Encode(buf, img)
 
-				msg, err := disCli.ChannelFileSendWithMessage(ch.ID, fmt.Sprintf("Please update %s to %s. (See color swatch)", up.Link(), up.Color.Name), "color.png", buf)
+				msg, err := disCli.ChannelFileSendWithMessage(ch.ID, fmt.Sprintf("Please update %s to %s. (See color swatch). Please react ✅ when done or the request will be requeued.", up.Link(), up.Color.Name), "color.png", buf)
 				if err != nil {
 					log.Println(err)
 				}
+
+				acked[msg.ID] = up
+				go func() {
+					defer func() {
+						err := recover()
+						if err != nil {
+							log.Printf("Panicked trying to update: %v\n", err)
+						}
+					}()
+					time.Sleep(4 * time.Minute)
+					if up, ok := acked[msg.ID]; ok {
+						log.Printf("requeueing: %+v\n", up)
+						ups <- up
+					}
+				}()
+
 				fmt.Printf("msg.ID = %+v\n", msg.ID)
 			}
 		}
