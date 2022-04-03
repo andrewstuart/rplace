@@ -5,3 +5,8 @@ https://discord.com/oauth2/authorize?client_id=960065127300882472&permissions=0&
 1. Add a bot, and reset/copy the token
 1. Add this bot user to your server: https://discord.com/oauth2/authorize?client_id=idFromYourApp&permissions=0&scope=bot%20applications.commands
 1. Run this bot with a channel id, the token, and an image (see `--help` for args)
+
+# TODO
+- Coordinate based on guild (server) membership
+- DMs across all server members
+- Ack with emoji and requeue if not finished
