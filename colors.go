@@ -30,6 +30,7 @@ var (
 // Pink       = mustParseHexColor("FF3881")
 )
 
+// GetPalette searches for the colors given an html page.
 func GetPalette(r io.Reader) (map[string]color.Color, error) {
 	doc, err := goquery.NewDocumentFromReader(r)
 	if err != nil {
