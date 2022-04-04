@@ -118,7 +118,6 @@ func (c *Client) GetDiff(ctx context.Context, img image.Image, at image.Point) (
 
 // getInitial waits for N full frame image updates
 func (c *Client) getInitial(ctx context.Context, numCanvases int) error {
-	c.Init(ctx)
 	for i := 0; i < numCanvases; i++ {
 		start.Payload.Variables.Input.Channel.Tag = fmt.Sprint(i)
 		err := c.conn.WriteJSON(start)
@@ -241,7 +240,10 @@ func (c *Client) Subscribe(ctx context.Context) (chan []Update, error) {
 			if err != nil {
 				if err == io.EOF {
 					c.o = sync.Once{}
-					c.Init(ctx)
+					err = c.Init(ctx)
+					if err != nil {
+						log.Println(err)
+					}
 					continue
 				}
 				log.Println(err)
