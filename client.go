@@ -38,7 +38,11 @@ func (c *Client) NeededUpdatesFor(ctx context.Context, img image.Image, at image
 		return nil, fmt.Errorf("error subscribing to updates: %w", err)
 	}
 
-	upds := c.GetDiff(img, at)
+	upds, err := c.GetDiff(ctx, img, at)
+	if err != nil {
+		return nil, fmt.Errorf("error getting initial diff: %w", err)
+	}
+
 	ch := make(chan Update)
 	go func() {
 		for _, upd := range upds {
@@ -80,7 +84,12 @@ func (c *Client) WithImage(img image.Image, at image.Point) (image.Image, error)
 
 // GetDiff returns a slice of changes that must be made for the Client's
 // current canvas to become the given image, overlayed at the given point.
-func (c *Client) GetDiff(img image.Image, at image.Point) []Update {
+func (c *Client) GetDiff(ctx context.Context, img image.Image, at image.Point) ([]Update, error) {
+	err := c.Init(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting initial canvas: %w", err)
+	}
+
 	bs := img.Bounds()
 	x, y := at.X, at.Y
 	var upds []Update
@@ -104,7 +113,7 @@ func (c *Client) GetDiff(img image.Image, at image.Point) []Update {
 		}
 	}
 
-	return upds
+	return upds, nil
 }
 
 // getInitial waits for N full frame image updates
@@ -195,7 +204,12 @@ func (c *Client) Init(ctx context.Context) error {
 		}
 
 		c.conn = conn
-		return
+
+		// Get initial images
+		err = c.getInitial(ctx, knownCanvases)
+		if err != nil {
+			cerr = fmt.Errorf("error getting initial canvases: %w", err)
+		}
 	})
 	return cerr
 }
@@ -203,11 +217,9 @@ func (c *Client) Init(ctx context.Context) error {
 // Subscribe returns a channel of pixel updates from the r/place canvas. This
 // does not include the initial canvas downloads.
 func (c *Client) Subscribe(ctx context.Context) (chan []Update, error) {
-	c.Init(ctx)
-	// Get initial images
-	err := c.getInitial(ctx, knownCanvases)
+	err := c.Init(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error getting initial canvases: %w", err)
+		return nil, fmt.Errorf("error initializing canvas: %w", err)
 	}
 
 	ch := make(chan []Update)
