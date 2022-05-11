@@ -5,12 +5,13 @@ Copyright © 2022 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"strings"
 
 	"git.stuart.fun/andrew/rester/v2"
 	"git.stuart.fun/andrew/rester/v2/iou"
@@ -43,25 +44,39 @@ var rootCmd = &cobra.Command{
 			c.Redirect(http.StatusTemporaryRedirect, oc.AuthCodeURL("bar", oauth2.SetAuthURLParam("duration", "permanent")))
 		})
 
-		cli := &http.Client{
-			Transport: rester.All{
-				rester.MaxStatus(399),
-				rester.Logging(logrus.WithField("cli", "reddit")),
-				rester.MergeHeaders{"User-Agent": []string{"web:testcli:0.1.0 (by u/10gistic)"}},
-				rester.RequestFunc(func(req *http.Request) {
-					req.Body = iou.ReadCloser{
-						Reader: io.TeeReader(req.Body, os.Stdout),
-						Closer: req.Body,
-					}
-				}),
-			}.Wrap(http.DefaultTransport),
-		}
+		rc := rester.Must(rester.New("https://www.reddit.com/api/v1"))
+		rc.Transport = rester.All{
+			rester.MaxStatus(399),
+			rester.Logging(logrus.WithField("cli", "reddit")),
+			rester.MergeHeaders{"User-Agent": {"web:testcli:0.1.0 (by u/10gistic)"}},
+			rester.RequestFunc(func(req *http.Request) {
+				req.Body = iou.ReadCloser{
+					Reader: io.TeeReader(req.Body, os.Stdout),
+					Closer: req.Body,
+				}
+			}),
+		}.Wrap(http.DefaultTransport)
+
+		// cli := http.Client{Transport: rc.Transport}
 
 		r.GET("/auth/oauth", func(c *gin.Context) {
-			cliCtx := context.WithValue(c.Request.Context(), oauth2.HTTPClient, cli)
+			// cliCtx := context.WithValue(c.Request.Context(), oauth2.HTTPClient, cli)
 			code := c.Query("code")
-			log.Println("code ", code)
-			tok, err := oc.Exchange(cliCtx, code)
+			body := url.Values{
+				"grant_type":   {"authorization_code"},
+				"code":         {code},
+				"redirect_uri": {oc.RedirectURL},
+			}
+
+			var tok oauth2.Token
+			err := rc.R().
+				WithBody(strings.NewReader(body.Encode())).
+				WithBasicAuth(oc.ClientID, oc.ClientSecret).
+				Post("access_token").
+				Do(c.Request.Context()).
+				JSON(&tok)
+
+			// tok, err := oc.Exchange(cliCtx, code)
 			if err != nil {
 				c.Writer.Header().Set("Content-Type", "text/html")
 				c.Writer.WriteString(err.Error())
